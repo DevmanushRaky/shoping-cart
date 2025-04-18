@@ -111,9 +111,6 @@ export const userService = {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
       
-      // Clear local storage
-      localStorage.removeItem('user');
-      
       return { success: true };
     } catch (error: any) {
       console.error('Error in logoutUser:', error);

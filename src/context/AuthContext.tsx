@@ -25,13 +25,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
-    // Check for existing user data on mount
+    console.log('AuthContext - Checking initial auth state...');
     const storedUser = localStorage.getItem('user');
+    console.log('AuthContext - Stored user data:', storedUser);
+    
     if (storedUser) {
-      const userData = JSON.parse(storedUser);
-      setUser(userData);
-      setIsLoggedIn(true);
-      setIsAdmin(userData.profile?.is_admin || false);
+      try {
+        const userData = JSON.parse(storedUser);
+        console.log('AuthContext - Setting initial user data:', userData);
+        setUser(userData);
+        setIsLoggedIn(true);
+        setIsAdmin(userData.profile?.is_admin || false);
+      } catch (error) {
+        console.error('AuthContext - Error parsing stored user data:', error);
+        // Clear invalid stored data
+        localStorage.removeItem('user');
+      }
+    } else {
+      console.log('AuthContext - No stored user data found');
     }
   }, []);
 
@@ -43,12 +54,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = async () => {
-    const result = await userService.logoutUser();
-    if (result.success) {
+    try {
+      console.log('Starting logout process...');
+      await userService.logoutUser();
+    } finally {
+      console.log('Clearing auth state...');
       setUser(null);
       setIsLoggedIn(false);
       setIsAdmin(false);
       localStorage.removeItem('user');
+      console.log('Auth state cleared:', { user: null, isLoggedIn: false, isAdmin: false });
     }
   };
 
