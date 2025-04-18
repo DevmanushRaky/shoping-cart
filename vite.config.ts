@@ -1,16 +1,16 @@
-import path from 'path'
 import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
+import reactPlugin from '@vitejs/plugin-react'
+import path from 'path'
 
+// https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [reactPlugin()],
   server: {
-    host: '0.0.0.0', // Listen on all interfaces
-    // no port specified → Vite will use default (5173) or pick next available
+    host: true, // Listen on all local IPs
   },
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
+      "@": path.resolve(__dirname, "./src"),
     },
   },
 })

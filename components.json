@@ -1,0 +1,9 @@
+{
+  "components": [
+    "auth-forms.tsx",
+    "cart-section.tsx",
+    "checkout-form.tsx",
+    "product-card.tsx",
+    "theme-provider.tsx"
+  ]
+}

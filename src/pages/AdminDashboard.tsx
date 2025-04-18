@@ -1,102 +1,106 @@
-import { useEffect, useState } from 'react';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { useToast } from '@/components/ui/use-toast';
-import { supabase } from '@/lib/supabase';
+import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { useToast } from '@/components/ui/use-toast'
+import { orderService } from '@/services/orderService'
 
-type Order = {
-  id: string;
-  user_id: string;
+interface Order {
+  id: number
+  user_id: string
   items: Array<{
-    product: {
-      id: string;
-      name: string;
-      price: number;
-    };
-    quantity: number;
-  }>;
-  total: number;
-  created_at: string;
-};
+    product_id: number
+    quantity: number
+  }>
+  total: number
+  created_at: string
+}
 
-export default function AdminDashboard() {
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(true);
-  const { toast } = useToast();
+export function AdminDashboard() {
+  const [orders, setOrders] = useState<Order[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const { toast } = useToast()
+  const navigate = useNavigate()
 
   useEffect(() => {
-    const fetchOrders = async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        
-        if (!user) {
-          toast({
-            title: 'Error',
-            description: 'Please sign in as admin',
-            variant: 'destructive',
-          });
-          return;
-        }
+    fetchOrders()
+  }, [])
 
-        const { data, error } = await supabase
-          .from('orders')
-          .select('*')
-          .order('created_at', { ascending: false });
+  const fetchOrders = async () => {
+    const result = await orderService.fetchAllOrders()
 
-        if (error) throw error;
-        setOrders(data || []);
-      } catch (error) {
-        toast({
-          title: 'Error',
-          description: 'Failed to fetch orders',
-          variant: 'destructive',
-        });
-      } finally {
-        setLoading(false);
-      }
-    };
+    if (result.success) {
+      setOrders(result.orders || [])
+    } else {
+      toast({
+        title: 'Error',
+        description: result.error,
+        variant: 'destructive',
+      })
+    }
 
-    fetchOrders();
-  }, [toast]);
+    setIsLoading(false)
+  }
 
-  if (loading) {
-    return <div>Loading...</div>;
+  if (isLoading) {
+    return (
+      <div className="container mx-auto py-8">
+        <div className="flex items-center justify-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+        </div>
+      </div>
+    )
   }
 
   return (
-    <div className="app">
-      <h1 className="text-2xl font-bold mb-6">Order Management</h1>
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Order ID</TableHead>
-              <TableHead>User ID</TableHead>
-              <TableHead>Items</TableHead>
-              <TableHead>Total</TableHead>
-              <TableHead>Date</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {orders.map(order => (
-              <TableRow key={order.id}>
-                <TableCell>{order.id}</TableCell>
-                <TableCell>{order.user_id}</TableCell>
-                <TableCell>
-                  <ul className="list-disc pl-5">
-                    {order.items.map((item, index) => (
-                      <li key={index}>
-                        {item.product.name} (x{item.quantity}) - ${item.product.price.toFixed(2)}
-                      </li>
-                    ))}
-                  </ul>
-                </TableCell>
-                <TableCell>${order.total.toFixed(2)}</TableCell>
-                <TableCell>{new Date(order.created_at).toLocaleString()}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+    <div className="container mx-auto py-8">
+      <div className="flex justify-between items-center mb-8">
+        <h1 className="text-3xl font-bold">Admin Dashboard</h1>
+        <Button onClick={() => navigate('/')}>Back to Shop</Button>
+      </div>
+
+      <div className="space-y-4">
+        {orders.length === 0 ? (
+          <Card>
+            <CardContent className="p-6">
+              <p className="text-center text-muted-foreground">No orders found</p>
+            </CardContent>
+          </Card>
+        ) : (
+          orders.map((order) => (
+            <Card key={order.id}>
+              <CardHeader>
+                <CardTitle>Order #{order.id}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <p>
+                    <span className="font-semibold">User ID:</span> {order.user_id}
+                  </p>
+                  <p>
+                    <span className="font-semibold">Total:</span> $
+                    {order.total.toFixed(2)}
+                  </p>
+                  <p>
+                    <span className="font-semibold">Date:</span>{' '}
+                    {new Date(order.created_at).toLocaleString()}
+                  </p>
+                  <div>
+                    <span className="font-semibold">Items:</span>
+                    <ul className="list-disc list-inside mt-2">
+                      {order.items.map((item, index) => (
+                        <li key={index}>
+                          Product ID: {item.product_id} - Quantity: {item.quantity}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))
+        )}
       </div>
     </div>
-  );
+  )
 }
