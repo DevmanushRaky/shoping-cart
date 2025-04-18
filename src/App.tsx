@@ -4,6 +4,7 @@ import { ShoppingCart } from '@/pages/ShoppingCart';
 import { AdminDashboard } from '@/pages/AdminDashboard';
 import Login from '@/pages/Login';
 import Register from '@/pages/Register';
+import AuthCallback from '@/pages/AuthCallback';
 import { Navbar } from '@/components/Navbar';
 import { AuthProvider } from '@/context/AuthContext';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
@@ -35,6 +36,10 @@ function App() {
                   <Register />
                 </AuthRoute>
               }
+            />
+            <Route
+              path="auth/callback"
+              element={<AuthCallback />}
             />
             <Route
               path="admin"

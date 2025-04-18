@@ -120,4 +120,102 @@ export const userService = {
       };
     }
   },
+
+  async loginWithGoogle(): Promise<LoginResponse> {
+    try {
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`
+        }
+      });
+
+      if (error) throw error;
+
+      // After successful OAuth redirect, we'll handle the user data in handleAuthCallback
+      return {
+        success: true,
+        user: {
+          id: '',
+          email: '',
+        }
+      };
+    } catch (error: any) {
+      console.error('Error in loginWithGoogle:', error);
+      return {
+        success: false,
+        error: error.message || 'Failed to login with Google',
+      };
+    }
+  },
+
+  async signUpWithGoogle(): Promise<LoginResponse> {
+    try {
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`
+        }
+      });
+
+      if (error) throw error;
+
+      // After successful OAuth redirect, we'll handle the user data in handleAuthCallback
+      return {
+        success: true,
+        user: {
+          id: '',
+          email: '',
+        }
+      };
+    } catch (error: any) {
+      console.error('Error in signUpWithGoogle:', error);
+      return {
+        success: false,
+        error: error.message || 'Failed to sign up with Google',
+      };
+    }
+  },
+
+  async handleAuthCallback(): Promise<LoginResponse> {
+    try {
+      const { data: { user }, error } = await supabase.auth.getUser();
+      
+      if (error) throw error;
+      if (!user) throw new Error('No user found');
+
+      // Fetch the user's profile
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
+
+      if (profileError) {
+        console.error('Error fetching profile:', profileError);
+        return {
+          success: true,
+          user: {
+            id: user.id,
+            email: user.email || '',
+          },
+        };
+      }
+
+      return {
+        success: true,
+        user: {
+          id: user.id,
+          email: user.email || '',
+          profile: profileData,
+        },
+      };
+    } catch (error: any) {
+      console.error('Error in handleAuthCallback:', error);
+      return {
+        success: false,
+        error: error.message || 'Failed to handle auth callback',
+      };
+    }
+  },
 };
