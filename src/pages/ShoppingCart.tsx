@@ -5,8 +5,10 @@ import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/use-toast'
 import { orderService } from '@/services/orderService'
 import { useAuth } from '@/context/AuthContext'
-import { ShoppingCartIcon } from 'lucide-react'
+import { ShoppingCartIcon, AlertCircle } from 'lucide-react'
 import { productService, Product } from '@/services/productService'
+import { Badge } from '@/components/ui/badge'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 
 console.log('[ShoppingCart] Module loading...');
 
@@ -74,10 +76,39 @@ export function ShoppingCart() {
   }, [cart]);
 
   const addToCart = (product: Product) => {
+    if (product.stock <= 0) {
+      toast({
+        title: 'Out of Stock',
+        description: 'This product is currently out of stock.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const cartItem = cart.find(item => item.id === product.id.toString());
+    const currentQuantity = cartItem ? cartItem.quantity : 0;
+
+    if (currentQuantity >= product.stock) {
+      toast({
+        title: 'Stock Limit Reached',
+        description: `Only ${product.stock} units available in stock.`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
     console.log('[ShoppingCart] Adding product to cart:', product);
     setCart((prevCart) => {
       const existingItem = prevCart.find((item) => item.id === product.id.toString())
       if (existingItem) {
+        if (existingItem.quantity >= product.stock) {
+          toast({
+            title: 'Stock Limit Reached',
+            description: `Only ${product.stock} units available in stock.`,
+            variant: 'destructive',
+          });
+          return prevCart;
+        }
         console.log('[ShoppingCart] Product already in cart, updating quantity');
         return prevCart.map((item) =>
           item.id === product.id.toString()
@@ -98,7 +129,19 @@ export function ShoppingCart() {
   const updateQuantity = (productId: string, newQuantity: number) => {
     console.log('[ShoppingCart] Updating quantity for product:', productId, 'New quantity:', newQuantity);
 
-    if (newQuantity < 1) return
+    if (newQuantity < 1) return;
+
+    const product = products.find(p => p.id.toString() === productId);
+    if (!product) return;
+
+    if (newQuantity > product.stock) {
+      toast({
+        title: 'Stock Limit Reached',
+        description: `Only ${product.stock} units available in stock.`,
+        variant: 'destructive',
+      });
+      return;
+    }
 
     setCart((prevCart) =>
       prevCart.map((item) =>
@@ -131,6 +174,14 @@ export function ShoppingCart() {
     setIsPlacingOrder(true);
 
     try {
+      // Verify stock availability before placing order
+      for (const item of cart) {
+        const product = products.find(p => p.id.toString() === item.id);
+        if (!product || product.stock < item.quantity) {
+          throw new Error(`Insufficient stock for ${item.name}`);
+        }
+      }
+
       const orderItems = cart.map(item => ({
         product_id: parseInt(item.id),
         quantity: item.quantity,
@@ -149,6 +200,13 @@ export function ShoppingCart() {
       if (!result.success) {
         throw new Error(result.error);
       }
+
+      // Update product stock quantities
+      await productService.updateMultipleProductsStock(orderItems);
+
+      // Refresh products list to show updated stock
+      const updatedProducts = await productService.getAllProducts();
+      setProducts(updatedProducts);
 
       // Clear cart after successful order
       setCart([]);
@@ -199,30 +257,62 @@ export function ShoppingCart() {
         {/* Products Section */}
         <div>
           <h2 className="text-2xl font-semibold mb-4">Products</h2>
-          <div className="grid grid-cols-1 gap-4">
-            {products.map((product) => (
-              <Card key={product.id}>
-                <CardHeader>
-                  <CardTitle>{product.name}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <img
-                    src={product.image_url}
-                    alt={product.name}
-                    className="w-full h-48 object-cover rounded-md mb-4"
-                  />
-                  <p className="text-sm text-muted-foreground mb-4">{product.description}</p>
-                  <div className="flex justify-between items-center">
-                    <span className="text-lg font-semibold">
-                      ${product.price.toFixed(2)}
-                    </span>
-                    <Button onClick={() => addToCart(product)}>
-                      Add to Cart
+          {/* Products Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
+            {products.length === 0 ? (
+              <Alert className="col-span-full">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>No products found matching your criteria.</AlertDescription>
+              </Alert>
+            ) : (
+              products.map((product) => (
+                <Card key={product.id} className="flex flex-col hover:shadow-lg transition-shadow">
+                  <CardHeader>
+                    <div className="flex justify-between items-start">
+                      <CardTitle className="text-lg">{product.name}</CardTitle>
+                      <Badge variant={product.stock <= 5 ? "destructive" : "secondary"}>
+                        {product.stock <= 5 ? `Only ${product.stock} left` : `${product.stock} in stock`}
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="flex-grow flex flex-col">
+                    <div className="relative aspect-square mb-4 bg-muted rounded-md overflow-hidden">
+                      <img
+                        src={product.image_url || '/placeholder.png'}
+                        alt={product.name}
+                        className="object-cover w-full h-full"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.src = '/placeholder.png';
+                        }}
+                      />
+                    </div>
+                    <Badge className="self-start mb-2" variant="outline">
+                      {product.category}
+                    </Badge>
+                    <p className="text-sm text-muted-foreground mb-4 flex-grow">
+                      {product.description}
+                    </p>
+                    <div className="flex items-center justify-between mb-4">
+                      <span className="text-xl font-semibold">
+                        ${product.price.toFixed(2)}
+                      </span>
+                      <Badge variant={product.stock === 0 ? "destructive" : "success"}>
+                        {product.stock > 0 ? "In Stock" : "Out of Stock"}
+                      </Badge>
+                    </div>
+                    <Button
+                      onClick={() => addToCart(product)}
+                      disabled={product.stock <= 0}
+                      className="w-full"
+                      variant={product.stock <= 0 ? "secondary" : "default"}
+                    >
+                      {product.stock <= 0 ? "Out of Stock" : "Add to Cart"}
                     </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                  </CardContent>
+                </Card>
+              ))
+            )}
           </div>
         </div>
 
