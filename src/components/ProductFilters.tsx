@@ -1,140 +1,447 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useMediaQuery } from '@/hooks/use-media-query';
-import { ProductFilters as ProductFiltersType, SortOption } from '@/services/productService';
-import { Search, X, ChevronDown } from 'lucide-react';
+import { Slider } from '@/components/ui/slider';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Badge } from '@/components/ui/badge';
+import { useToast } from '@/components/ui/use-toast';
+import { X, Search, Filter, SortAsc, SortDesc } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { productService,  type ProductFilters, type SortOption } from '@/services/productService';
 
 interface ProductFiltersProps {
-  onFiltersChange: (filters: ProductFiltersType) => void;
+  onFiltersChange: (filters: ProductFilters) => void;
   onSortChange: (sortBy: SortOption) => void;
-  categories: string[];
+  onSearch: (query: string) => void;
+  isMobile: boolean;
 }
 
-export function ProductFilters({ onFiltersChange, onSortChange, categories }: ProductFiltersProps) {
-  const [filters, setFilters] = useState<ProductFiltersType>({});
-  const [searchQuery, setSearchQuery] = useState('');
+export function ProductFilters({
+  onFiltersChange,
+  onSortChange,
+  onSearch,
+  isMobile,
+}: ProductFiltersProps) {
+  const { toast } = useToast();
+  const [categories, setCategories] = useState<string[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [priceRange, setPriceRange] = useState<[number, number]>([0, 1000]);
   const [inStockOnly, setInStockOnly] = useState(false);
-  const [sortBy, setSortBy] = useState<SortOption>('newest');
-  const isDesktop = useMediaQuery('(min-width: 768px)');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState<SortOption | null>(null);
+  const [isOpen, setIsOpen] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
 
+  // Create a stable filters object that only changes when filter values change
+  const currentFilters = useMemo(() => {
+    const filters: ProductFilters = {};
+    
+    if (selectedCategories.length > 0) {
+      filters.categories = selectedCategories;
+    }
+    if (priceRange[0] > 0) {
+      filters.minPrice = priceRange[0];
+    }
+    if (priceRange[1] < 1000) {
+      filters.maxPrice = priceRange[1];
+    }
+    if (inStockOnly) {
+      filters.inStockOnly = true;
+    }
+
+    return filters;
+  }, [selectedCategories, priceRange, inStockOnly]);
+
+  // Debounced search handler - only trigger when search query changes
   useEffect(() => {
-    onFiltersChange({
-      ...filters,
-      categories: selectedCategories,
-      inStockOnly,
-      searchQuery: searchQuery || undefined
+    const timeoutId = setTimeout(() => {
+      onSearch(searchQuery);
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [searchQuery, onSearch]);
+
+  // Apply filters when they change - consolidated into a single effect
+  useEffect(() => {
+    // Skip if we're currently dragging the price slider
+    if (isDragging) return;
+    
+    // Apply filters with a small delay to prevent rapid re-renders
+    const timeoutId = setTimeout(() => {
+      onFiltersChange(currentFilters);
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [currentFilters, isDragging, onFiltersChange]);
+
+  // Fetch categories on component mount - only runs once
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const fetchedCategories = await productService.getCategories();
+        setCategories(fetchedCategories);
+      } catch (error) {
+        console.error('Error fetching categories:', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to load categories. Please try again later.',
+          variant: 'destructive',
+        });
+      }
+    };
+
+    fetchCategories();
+  }, [toast]);
+
+  // Handle sort change
+  const handleSortChange = useCallback((option: SortOption) => {
+    setSortBy(option);
+    onSortChange(option);
+    
+    let sortText = '';
+    switch (option) {
+      case 'price_asc':
+        sortText = 'Price: Low to High';
+        break;
+      case 'price_desc':
+        sortText = 'Price: High to Low';
+        break;
+      case 'name_asc':
+        sortText = 'Name: A-Z';
+        break;
+      case 'name_desc':
+        sortText = 'Name: Z-A';
+        break;
+      case 'newest':
+        sortText = 'Newest First';
+        break;
+    }
+    
+    toast({
+      title: 'Sorted',
+      description: `Products sorted by ${sortText}`,
     });
-  }, [selectedCategories, inStockOnly, searchQuery]);
+  }, [onSortChange, toast]);
 
-  useEffect(() => {
-    onSortChange(sortBy);
-  }, [sortBy]);
+  // Handle search input
+  const handleSearchInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(e.target.value);
+  }, []);
 
-  const handleCategoryToggle = (category: string) => {
-    setSelectedCategories(prev =>
-      prev.includes(category)
-        ? prev.filter(c => c !== category)
-        : [...prev, category]
-    );
-  };
+  // Clear search
+  const clearSearch = useCallback(() => {
+    setSearchQuery('');
+    onSearch('');
+  }, [onSearch]);
 
-  const clearFilters = () => {
+  // Clear all filters
+  const clearAllFilters = useCallback(() => {
     setSelectedCategories([]);
+    setPriceRange([0, 1000]);
     setInStockOnly(false);
     setSearchQuery('');
-  };
+    setSortBy(null);
+    onFiltersChange({});
+    onSortChange('newest');
+    onSearch('');
+    
+    toast({
+      title: 'Filters Cleared',
+      description: 'All filters have been reset.',
+    });
+  }, [onFiltersChange, onSortChange, onSearch, toast]);
 
-  const FilterControls = () => (
-    <div className="space-y-4">
-      <div className="relative">
-        <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Search products..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="pl-8"
-        />
-        {searchQuery && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="absolute right-2 top-2.5 h-4 w-4 p-0"
-            onClick={() => setSearchQuery('')}
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        )}
-      </div>
+  // Handle price range changes
+  const handlePriceRangeChange = useCallback((value: number[]) => {
+    setPriceRange([value[0], value[1]]);
+  }, []);
 
+  // Price range slider
+  const handleSliderDragStart = useCallback(() => {
+    setIsDragging(true);
+  }, []);
+
+  const handleSliderDragEnd = useCallback(() => {
+    setIsDragging(false);
+  }, []);
+
+  // Toggle category selection
+  const toggleCategory = useCallback((category: string) => {
+    setSelectedCategories((prev) => {
+      if (prev.includes(category)) {
+        return prev.filter((c) => c !== category);
+      } else {
+        return [...prev, category];
+      }
+    });
+  }, []);
+
+  // Remove a specific filter
+  const removeFilter = useCallback((type: string, value: string) => {
+    switch (type) {
+      case 'category':
+        setSelectedCategories((prev) => prev.filter((c) => c !== value));
+        break;
+      case 'price':
+        if (value === 'min') {
+          setPriceRange((prev) => [0, prev[1]]);
+        } else {
+          setPriceRange((prev) => [prev[0], 1000]);
+        }
+        break;
+      case 'stock':
+        setInStockOnly(false);
+        break;
+      case 'search':
+        clearSearch();
+        break;
+    }
+  }, [clearSearch]);
+
+  // Filter badges to display - memoized to prevent recalculation on every render
+  const filterBadges = useMemo(() => [
+    ...selectedCategories.map((category) => ({
+      type: 'category',
+      value: category,
+      label: category,
+    })),
+    ...(priceRange[0] > 0
+      ? [{ type: 'price', value: 'min', label: `Min: $${priceRange[0]}` }]
+      : []),
+    ...(priceRange[1] < 1000
+      ? [{ type: 'price', value: 'max', label: `Max: $${priceRange[1]}` }]
+      : []),
+    ...(inStockOnly ? [{ type: 'stock', value: 'inStock', label: 'In Stock Only' }] : []),
+    ...(searchQuery ? [{ type: 'search', value: 'search', label: `Search: ${searchQuery}` }] : []),
+  ], [selectedCategories, priceRange, inStockOnly, searchQuery]);
+
+  // Filter panel content - memoized to prevent recreation on every render
+  const FilterPanel = useMemo(() => () => (
+    <div className="space-y-6 p-4">
+      {/* Categories */}
       <div className="space-y-2">
-        <h3 className="font-semibold">Categories</h3>
-        <div className="flex flex-wrap gap-2">
-          {categories.map(category => (
-            <Button
-              key={category}
-              variant={selectedCategories.includes(category) ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => handleCategoryToggle(category)}
-            >
-              {category}
-            </Button>
+        <h3 className="text-sm font-medium">Categories</h3>
+        <div className="grid grid-cols-2 gap-2">
+          {categories.map((category) => (
+            <div key={category} className="flex items-center space-x-2">
+              <Checkbox
+                id={`category-${category}`}
+                checked={selectedCategories.includes(category)}
+                onCheckedChange={() => toggleCategory(category)}
+              />
+              <label
+                htmlFor={`category-${category}`}
+                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+              >
+                {category}
+              </label>
+            </div>
           ))}
         </div>
       </div>
 
+      {/* Price Range */}
+      <div className="space-y-2">
+        <h3 className="text-sm font-medium">Price Range</h3>
+        <div className="pt-2">
+          <Slider
+            min={0}
+            max={1000}
+            step={10}
+            value={priceRange}
+            onValueChange={handlePriceRangeChange}
+            onPointerDown={handleSliderDragStart}
+            onPointerUp={handleSliderDragEnd}
+            className="w-full"
+          />
+          <div className="flex justify-between mt-2">
+            <span className="text-sm">${priceRange[0]}</span>
+            <span className="text-sm">${priceRange[1]}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Stock Availability */}
       <div className="flex items-center space-x-2">
-        <input
-          type="checkbox"
+        <Checkbox
           id="in-stock"
           checked={inStockOnly}
-          onChange={(e) => setInStockOnly(e.target.checked)}
-          className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+          onCheckedChange={(checked) => setInStockOnly(checked as boolean)}
         />
-        <label htmlFor="in-stock" className="text-sm font-medium">
+        <label
+          htmlFor="in-stock"
+          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+        >
           In Stock Only
         </label>
       </div>
 
-      <div className="space-y-2">
-        <h3 className="font-semibold">Sort By</h3>
-        <select
-          value={sortBy}
-          onChange={(e) => setSortBy(e.target.value as SortOption)}
-          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring"
-        >
-          <option value="price_asc">Price: Low to High</option>
-          <option value="price_desc">Price: High to Low</option>
-          <option value="name_asc">Name: A to Z</option>
-          <option value="name_desc">Name: Z to A</option>
-          <option value="newest">Newest First</option>
-        </select>
-      </div>
-
-      <Button variant="outline" className="w-full" onClick={clearFilters}>
+      {/* Clear All Filters */}
+      <Button
+        variant="outline"
+        className="w-full"
+        onClick={clearAllFilters}
+      >
         Clear All Filters
       </Button>
     </div>
-  );
+  ), [categories, selectedCategories, priceRange, inStockOnly, toggleCategory, handlePriceRangeChange, handleSliderDragStart, handleSliderDragEnd, clearAllFilters]);
 
-  if (isDesktop) {
-    return (
-      <Card className="w-full">
-        <CardHeader>
-          <CardTitle>Filters</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <FilterControls />
-        </CardContent>
-      </Card>
-    );
-  }
+  // Mobile drawer - memoized to prevent recreation on every render
+  const MobileFilterDrawer = useMemo(() => () => (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm" className="w-full">
+          <Filter className="h-4 w-4 mr-2" />
+          Filters
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle>Filters</DialogTitle>
+        </DialogHeader>
+        <div className="mt-6 max-h-[80vh] overflow-y-auto pr-6">
+          <FilterPanel />
+        </div>
+      </DialogContent>
+    </Dialog>
+  ), [FilterPanel]);
+
+  // Desktop collapsible - memoized to prevent recreation on every render
+  const DesktopFilterCollapsible = useMemo(() => () => (
+    <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+      <CollapsibleTrigger asChild>
+        <Button variant="outline" size="sm" className="w-full">
+          <Filter className="h-4 w-4 mr-2" />
+          Filters
+        </Button>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="mt-2">
+        <FilterPanel />
+      </CollapsibleContent>
+    </Collapsible>
+  ), [isOpen, FilterPanel]);
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-background border-t p-4 md:hidden">
-      <FilterControls />
+    <div className="space-y-4 mb-6">
+      {/* Search and Sort Row */}
+      <div className="flex flex-col sm:flex-row gap-2">
+        {/* Search Input */}
+        <div className="relative flex-1">
+          <Input
+            placeholder="Search products..."
+            value={searchQuery}
+            onChange={handleSearchInput}
+            className="pr-20"
+          />
+          <div className="absolute right-0 top-0 h-full flex">
+            {searchQuery && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-full px-2"
+                onClick={clearSearch}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-full px-2"
+              onClick={() => onSearch(searchQuery)}
+            >
+              <Search className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+
+        {/* Sort Dropdown */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="whitespace-nowrap">
+              {sortBy ? (
+                <>
+                  {sortBy === 'price_asc' && <SortAsc className="h-4 w-4 mr-2" />}
+                  {sortBy === 'price_desc' && <SortDesc className="h-4 w-4 mr-2" />}
+                  {sortBy === 'name_asc' && <SortAsc className="h-4 w-4 mr-2" />}
+                  {sortBy === 'name_desc' && <SortDesc className="h-4 w-4 mr-2" />}
+                  {sortBy === 'newest' && <Filter className="h-4 w-4 mr-2" />}
+                  {sortBy === 'price_asc' && 'Price: Low to High'}
+                  {sortBy === 'price_desc' && 'Price: High to Low'}
+                  {sortBy === 'name_asc' && 'Name: A-Z'}
+                  {sortBy === 'name_desc' && 'Name: Z-A'}
+                  {sortBy === 'newest' && 'Newest First'}
+                </>
+              ) : (
+                <>
+                  <Filter className="h-4 w-4 mr-2" />
+                  Sort By
+                </>
+              )}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => handleSortChange('price_asc')}>
+              Price: Low to High
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleSortChange('price_desc')}>
+              Price: High to Low
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => handleSortChange('name_asc')}>
+              Name: A-Z
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleSortChange('name_desc')}>
+              Name: Z-A
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => handleSortChange('newest')}>
+              Newest First
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
+      {/* Filter Controls */}
+      {isMobile ? <MobileFilterDrawer /> : <DesktopFilterCollapsible />}
+
+      {/* Active Filters */}
+      {filterBadges.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {filterBadges.map((badge, index) => (
+            <Badge key={index} variant="secondary" className="flex items-center gap-1">
+              {badge.label}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-4 w-4 p-0 hover:bg-transparent"
+                onClick={() => removeFilter(badge.type, badge.value)}
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            </Badge>
+          ))}
+        </div>
+      )}
     </div>
   );
 } 
