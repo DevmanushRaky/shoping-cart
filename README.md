@@ -160,4 +160,56 @@ src/
 ## 📸 Screenshots
 
 
-![Shopping Cart](/public/task5-shopping-cart.git)
+![Shopping Cart](public/task5-shopping-cart.gif)
+
+
+ ### chatbot 
+### Chatbot Integration with Google Gemini
+
+1. **Set up Google Gemini API**
+   ```env
+   VITE_GEMINI_API_URL=https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent
+   VITE_GEMINI_API_KEY=your_gemini_api_key
+   ```
+
+2. **Install required dependencies**
+   ```bash
+   npm install react-markdown react-icons @radix-ui/react-scroll-area
+   ```
+
+3. **Create chat service**
+   - Set up chat interfaces and types
+   - Implement local storage for chat persistence
+   - Add Gemini API integration functions
+
+4. **Build chat components**
+   - Create main Chatbot component with message history
+   - Add ChatButton component for navigation
+   - Style with Tailwind CSS
+
+5. **Add to your routes**
+   ```tsx
+   import Chatbot from './pages/Chatbot';
+   
+   // In your router configuration
+   {
+     path: '/chatbot',
+     element: <Chatbot />
+   }
+   ```
+
+6. **Place ChatButton component**
+   ```tsx
+   // In your layout/App component
+   import ChatButton from './components/ChatButton';
+   
+   // Add to JSX
+   <ChatButton />
+   ```
+
+The chatbot provides:
+- Real-time conversation with Gemini AI
+- Markdown rendering for bot responses
+- Chat history persistence
+- Multiple chat sessions management
+- Responsive design with dark mode support

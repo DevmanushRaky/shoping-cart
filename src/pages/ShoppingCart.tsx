@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { ProductFilters as ProductFiltersComponent } from "@/components/ProductFilters"
+import ChatButton from "../components/ChatButton"
 
 console.log("[ShoppingCart] Module loading...")
 
@@ -652,6 +653,7 @@ export function ShoppingCart() {
           )}
         </div>
       </div>
+      <ChatButton />
     </div>
   )
 }

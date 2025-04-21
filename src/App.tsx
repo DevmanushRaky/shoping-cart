@@ -9,6 +9,7 @@ import { Navbar } from '@/components/Navbar';
 import { AuthProvider } from '@/context/AuthContext';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { AuthRoute } from '@/components/AuthRoute';
+import Chatbot from './pages/Chatbot';
 
 console.log('App component rendering...');
 
@@ -40,6 +41,10 @@ function App() {
             <Route
               path="auth/callback"
               element={<AuthCallback />}
+            />
+            <Route
+              path="chatbot"
+              element={<Chatbot />}
             />
             <Route
               path="admin"
