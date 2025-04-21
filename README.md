@@ -68,6 +68,27 @@ A modern e-commerce application built with React, Vite, Shadcn UI, and Supabase.
         created_at timestamp with time zone default timezone('utc'::text, now())
       );
 
+      --trigger a function when user register via email or lign via google 
+      CREATE OR REPLACE FUNCTION public.handle_new_user()
+        RETURNS TRIGGER AS $$
+        BEGIN
+        INSERT INTO public.profiles (id, user_id, is_admin, created_at)
+        VALUES (
+            NEW.id,         -- id from auth.users
+            NEW.id,         -- user_id (same as id)
+            FALSE,          -- default is_admin to false
+            NOW()           -- current timestamp
+        );
+        RETURN NEW;
+        END;
+        $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+        --trigger a function
+        CREATE TRIGGER on_auth_user_created
+        AFTER INSERT ON auth.users
+        FOR EACH ROW
+        EXECUTE FUNCTION public.handle_new_user();
+
       -- adding dummy products 
                 DO $$
           DECLARE
