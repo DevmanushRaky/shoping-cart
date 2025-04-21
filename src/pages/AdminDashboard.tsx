@@ -54,6 +54,7 @@ import {
   DialogFooter,
   DialogDescription,
 } from "@/components/ui/dialog"
+import ChatButton from "../components/ChatButton"
 
 interface Order {
   id: number
@@ -645,6 +646,7 @@ export function AdminDashboard() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <ChatButton />
     </div>
   )
 }
