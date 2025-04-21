@@ -67,7 +67,46 @@ A modern e-commerce application built with React, Vite, Shadcn UI, and Supabase.
         status text not null,
         created_at timestamp with time zone default timezone('utc'::text, now())
       );
-      ```
+
+      -- adding dummy products 
+                DO $$
+          DECLARE
+              i INTEGER;
+              categories TEXT[] := ARRAY[
+                  'Electronics', 'Clothing', 'Books', 'Home',
+                  'Toys', 'Sports', 'Beauty', 'Garden',
+                  'Automotive', 'Grocery'
+              ];
+              base_urls TEXT[] := ARRAY[
+                  'https://source.unsplash.com/featured/?electronics',
+                  'https://source.unsplash.com/featured/?clothing',
+                  'https://source.unsplash.com/featured/?books',
+                  'https://source.unsplash.com/featured/?home',
+                  'https://source.unsplash.com/featured/?toys',
+                  'https://source.unsplash.com/featured/?sports',
+                  'https://source.unsplash.com/featured/?beauty',
+                  'https://source.unsplash.com/featured/?garden',
+                  'https://source.unsplash.com/featured/?automotive',
+                  'https://source.unsplash.com/featured/?grocery'
+              ];
+          BEGIN
+              FOR i IN 1..5000 LOOP
+                  INSERT INTO products (
+                      name, price, description, image_url,
+                      created_at, updated_at, category, stock
+                  )
+                  VALUES (
+                      'Product ' || i,
+                      ROUND((random() * 100)::numeric, 2),
+                      'This is the description for Product ' || i,
+                      base_urls[(i - 1) % 10 + 1] || '&sig=' || i,
+                      NOW(),
+                      NOW(),
+                      categories[(i - 1) % 10 + 1],
+                      FLOOR(random() * 100)
+                  );
+              END LOOP;
+          END $$;```
 
     - Enable Row Level Security (RLS) on the tables
     - Set up authentication providers
